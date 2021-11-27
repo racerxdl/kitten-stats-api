@@ -16,13 +16,13 @@ module.exports = {
   resolve: {
     extensions: ['.ts', '.tsx', '.js'],
     fallback: {
-        'url': false,
-        'os': false,
-        'https': false,
-        'http': false,
-        'crypto': false,
-        'assert': false,
-        'stream': false,
+      url: false,
+      os: false,
+      https: false,
+      http: false,
+      crypto: false,
+      assert: false,
+      stream: false,
     },
   },
   plugins: [

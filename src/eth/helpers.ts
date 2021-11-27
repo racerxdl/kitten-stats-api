@@ -16,10 +16,7 @@ class EasyContract {
 
   private readonly _jsonInterface: AbiItem[]
 
-  constructor(web3: Web3,
-              jsonInterface: AbiItem[],
-              address?: string,
-              options?: ContractOptions) {
+  constructor(web3: Web3, jsonInterface: AbiItem[], address?: string, options?: ContractOptions) {
     this.contract = new web3.eth.Contract(jsonInterface, address, options)
 
     this.eventMap = {}
@@ -55,7 +52,7 @@ class EasyContract {
    * Decode inputData from a contract call transaction
    * @param inputData hex content of the transaction input field
    */
-  decodeMethod(inputData: string) : DecodedMethod | undefined {
+  decodeMethod(inputData: string): DecodedMethod | undefined {
     if (inputData.length < 3) {
       return
     }
@@ -100,7 +97,4 @@ class EasyContract {
   }
 }
 
-export {
-  EasyContract,
-  ParsedLog,
-}
+export { EasyContract, ParsedLog }

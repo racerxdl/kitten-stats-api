@@ -6,29 +6,24 @@ import { handleScheduled } from './cron/updateTransactions'
 
 const router = new Router<Context>()
 const api = new Router<Context>()
-const cacheHeader = "s-maxage=300"
-const failCacheHeader = "s-maxage=60"
+const cacheHeader = 's-maxage=300'
+const failCacheHeader = 's-maxage=60'
 
 router.get('/favicon.ico', (req, res) => {
   return res.statusCode(404).text('404')
 })
 
 router.get('/', (req, res) => {
-  return res
-    .setHeader('Location', 'https://lucasteske.dev')
-    .statusCode(302)
-    .text('Nothing to see here')
+  return res.setHeader('Location', 'https://lucasteske.dev').statusCode(302).text('Nothing to see here')
 })
 
 router.use('/api', api)
 
 api.get('/time', (req, res) => {
-  return res
-    .statusCode(200)
-    .json({
-      success: true,
-      time: new Date().toISOString(),
-    })
+  return res.statusCode(200).json({
+    success: true,
+    time: new Date().toISOString(),
+  })
 })
 
 api.get('/last-transactions/*', async (req, res) => {
@@ -46,18 +41,15 @@ api.get('/last-transactions/*', async (req, res) => {
   const ctx = req.additionalData!
   try {
     const trxs = await ctx.getLastTransactions(contract)
-    res
-      .setHeader("Cache-Control", cacheHeader)
-      .statusCode(200)
-      .json({
-        success: true,
-        data: trxs,
-        timestamp: Date.now(),
-        contract,
-      })
+    res.setHeader('Cache-Control', cacheHeader).statusCode(200).json({
+      success: true,
+      data: trxs,
+      timestamp: Date.now(),
+      contract,
+    })
   } catch (e) {
     res
-      .setHeader("Cache-Control", failCacheHeader)
+      .setHeader('Cache-Control', failCacheHeader)
       .statusCode(500)
       .json({
         success: false,
@@ -67,7 +59,7 @@ api.get('/last-transactions/*', async (req, res) => {
       })
   }
 
-  await cache.put(cacheKey, new Response(res.responseOptions.body, res.transformResponseOptions()));
+  await cache.put(cacheKey, new Response(res.responseOptions.body, res.transformResponseOptions()))
   return res
 })
 
@@ -87,38 +79,35 @@ api.get('/transaction/*', async (req, res) => {
   try {
     let trxData
     const trxo = await ctx.getFullTransaction(trx)
-    res
-      .statusCode(200)
-      .json({
-        success: true,
-        data: trxData || trxo,
-        hash: trx,
-      })
-
+    res.statusCode(200).json({
+      success: true,
+      data: trxData || trxo,
+      hash: trx,
+    })
   } catch (e) {
-    res
-      .statusCode(500)
-      .json({
-        success: false,
-        data: JSON.parse(JSON.stringify(e, Object.getOwnPropertyNames(e))),
-        hash: trx,
-      })
+    res.statusCode(500).json({
+      success: false,
+      data: JSON.parse(JSON.stringify(e, Object.getOwnPropertyNames(e))),
+      hash: trx,
+    })
   }
 
-  await cache.put(cacheKey, new Response(res.responseOptions.body, res.transformResponseOptions()));
+  await cache.put(cacheKey, new Response(res.responseOptions.body, res.transformResponseOptions()))
+})
+
+api.get('/update', async (req, res) => {
+  const ctx = req.additionalData!
+  await ctx.updateLastTransactions()
+  return res.statusCode(200).json({
+    success: true,
+  })
 })
 
 addEventListener('fetch', (event: FetchEvent) => {
-  const ctx = new Context(
-    RPC_URL,
-    API_URL,
-    API_TOKEN,
-  )
-  return event.respondWith(
-    router.serveRequest(event.request, ctx).then(built => built.response),
-  )
+  const ctx = new Context(RPC_URL, API_URL, API_TOKEN)
+  return event.respondWith(router.serveRequest(event.request, ctx).then((built) => built.response))
 })
 
 addEventListener('scheduled', (event: ScheduledEvent) => {
-  event.waitUntil(handleScheduled(event))
+  event.waitUntil(handleScheduled())
 })

@@ -24,11 +24,14 @@ const transactionIndexNumber = (block: string, index: string) => `${transactionI
 const transactionReverseIndexNumber = (block: string, index: string) => `${transactionReverseIndexKeyPrefix}${block}-${index}`
 const contractKey = (address: string) => `${contractKeyPrefix}${address}`
 
-const transactionIndexFromNumber = (from: string, block: string, index: string) => `${transactionIndexFromKeyPrefix}${from}-${block}-${index}`
+const transactionIndexFromNumber = (from: string, block: string, index: string) =>
+  `${transactionIndexFromKeyPrefix}${from}-${block}-${index}`
 const transactionIndexToNumber = (to: string, block: string, index: string) => `${transactionIndexToKeyPrefix}${to}-${block}-${index}`
 
-const transactionReverseIndexFromNumber = (from: string, block: string, index: string) => `${transactionReverseIndexFromKeyPrefix}${from}-${block}-${index}`
-const transactionReverseIndexToNumber = (to: string, block: string, index: string) => `${transactionReverseIndexToKeyPrefix}${to}-${block}-${index}`
+const transactionReverseIndexFromNumber = (from: string, block: string, index: string) =>
+  `${transactionReverseIndexFromKeyPrefix}${from}-${block}-${index}`
+const transactionReverseIndexToNumber = (to: string, block: string, index: string) =>
+  `${transactionReverseIndexToKeyPrefix}${to}-${block}-${index}`
 
 /**
  * Returns a ParsedFullTransaction from FantomProdTransactions KV
@@ -53,11 +56,19 @@ const putTransaction = async (trx: ParsedFullTransaction): Promise<void> => {
   }
 
   const serialized = JSON.stringify(trx)
-  await FantomProdTransactions.put(transactionKey(trx.hash), serialized, { expirationTtl: transactionExpiration })
+  await FantomProdTransactions.put(transactionKey(trx.hash), serialized, {
+    expirationTtl: transactionExpiration,
+  })
   if (trx.transaction.blockNumber === undefined || trx.transaction.transactionIndex === undefined) {
     throw Error(`Invalid transaction with no blockNumber or no transactionIndex!!!: ${JSON.stringify(trx)}`)
   }
-  await putOrderedIndex(trx.transaction.blockNumber!.toString(), trx.hash, trx.transaction.transactionIndex!.toString(), trx.transaction.from||'0', trx.transaction.to||'0')
+  await putOrderedIndex(
+    trx.transaction.blockNumber!.toString(),
+    trx.hash,
+    trx.transaction.transactionIndex!.toString(),
+    trx.transaction.from || '0',
+    trx.transaction.to || '0',
+  )
 }
 
 /**
@@ -84,10 +95,15 @@ const putOrderedIndex = async (blockNumber: string, hash: string, trxIdx: string
   const reverseTrxId = max32.sub(trxId).toString(10)
 
   const blockN = block.toString(10)
-  const trxN = block.toString(10)
+  const trxN = trxId.toString(10)
+
+  from = from.toLowerCase()
+  to = to.toLowerCase()
 
   const metadata = {
-    from, to, hash,
+    from,
+    to,
+    hash,
   }
 
   await Promise.all([
@@ -118,10 +134,48 @@ const getLastNTransactions = async (n: number, blockPrefix = ''): Promise<Array<
     limit: n,
   })
 
-  return result
-    .keys
+  return result.keys
     .map((k: KVNamespaceListKey<IndexMetadata>) => k.metadata?.hash)
-    .filter(k => k !== null && k !== undefined) as Array<string>
+    .filter((k) => k !== null && k !== undefined) as Array<string>
+}
+
+/**
+ * Get list of hashes of the last N transactions from the FantomProdTransactions
+ * The block prefix can be used for filtering transactions from a specific block
+ *
+ * @param from address from
+ * @param n limit of transactions to return
+ */
+const getFromLastNTransactions = async (from: string, n: number): Promise<Array<string>> => {
+  const prefix = `${transactionReverseIndexFromKeyPrefix}${from}`
+  const result = await FantomProdTransactions.list<IndexMetadata>({
+    prefix,
+    limit: n,
+  })
+
+  return result.keys
+    .map((k: KVNamespaceListKey<IndexMetadata>) => k.metadata?.hash)
+    .filter((k) => k !== null && k !== undefined) as Array<string>
+}
+
+/**
+ * Get list of hashes of the last N transactions from the FantomProdTransactions
+ * The block prefix can be used for filtering transactions from a specific block
+ *
+ * @param to address to
+ * @param n limit of transactions to return
+ */
+const getToLastNTransactions = async (to: string, n: number): Promise<Array<string>> => {
+  console.log(`getToLastNTransactions(${to}, ${n})`)
+  const prefix = `${transactionReverseIndexToKeyPrefix}${to}`
+  const result = await FantomProdTransactions.list<IndexMetadata>({
+    prefix,
+    limit: n,
+  })
+
+  return result.keys
+    .map((k: KVNamespaceListKey<IndexMetadata>) => k.metadata?.hash)
+    .filter((k) => k !== null && k !== undefined) as Array<string>
 }
 
 /**
@@ -131,11 +185,21 @@ const getLastNTransactions = async (n: number, blockPrefix = ''): Promise<Array<
  */
 const saveTransactions = async (trxs: Array<ParsedFullTransaction>): Promise<void> => {
   const cleanTransactions = trxs
-    .filter(trx => trx.hash !== undefined && trx.hash !== '')
-    .filter(trx => trx.transaction.blockNumber !== undefined && trx.transaction.blockNumber !== '')
-    .filter(trx => trx.transaction.transactionIndex !== undefined && trx.transaction.transactionIndex !== '')
+    .filter((trx) => trx.hash !== undefined && trx.hash !== '')
+    .filter((trx) => trx.transaction.blockNumber !== undefined && trx.transaction.blockNumber !== '')
+    .filter((trx) => trx.transaction.transactionIndex !== undefined && trx.transaction.transactionIndex !== '')
 
-  await Promise.all(cleanTransactions.map((trx => putOrderedIndex(trx.transaction.blockNumber!, trx.hash!, trx.transaction.transactionIndex!, trx.transaction.from||'0', trx.transaction.to||'0'))))
+  await Promise.all(
+    cleanTransactions.map((trx) =>
+      putOrderedIndex(
+        trx.transaction.blockNumber!,
+        trx.hash!,
+        trx.transaction.transactionIndex!,
+        trx.transaction.from || '0',
+        trx.transaction.to || '0',
+      ),
+    ),
+  )
   await Promise.all(cleanTransactions.map(putTransaction))
 }
 
@@ -161,8 +225,10 @@ const getContractABI = async (contractAddress: string): Promise<Array<AbiItem> |
  * Saves the context state to the FantomProdTransactions KV instance
  * @param state context state
  */
-const putContextState = async (state: ContextState) => {
-  await FantomProdTransactions.put(contextStateKey, JSON.stringify(state), { metadata: { lastUpdate: Date.now() } })
+const putContextState = async (state: ContextState): Promise<void> => {
+  await FantomProdTransactions.put(contextStateKey, JSON.stringify(state), {
+    metadata: { lastUpdate: Date.now() },
+  })
 }
 
 /**
@@ -189,4 +255,6 @@ export {
   putContractABI,
   putContextState,
   getContextState,
+  getToLastNTransactions,
+  getFromLastNTransactions,
 }

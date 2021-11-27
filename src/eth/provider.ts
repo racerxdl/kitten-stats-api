@@ -24,10 +24,7 @@ export class FetchProvider {
 
   supportsSubscriptions = (): boolean => false
 
-  send(
-    payload: JsonRpcPayload,
-    callback: (error: Error | null, result?: JsonRpcResponse) => void,
-  ): void {
+  send(payload: JsonRpcPayload, callback: (error: Error | null, result?: JsonRpcResponse) => void): void {
     fetch(this.host, {
       headers: {
         'Content-Type': 'application/json',

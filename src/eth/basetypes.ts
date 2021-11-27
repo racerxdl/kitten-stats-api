@@ -6,7 +6,7 @@ interface SignedABIItem extends AbiItem {
 }
 
 interface ParsedLog {
-  event: AbiItem;
+  event: AbiItem
   parsedData: { [key: string]: string }
 }
 
@@ -47,7 +47,7 @@ interface ContractUpdateState {
 
 interface ContextState {
   lastCronRun?: number
-  lastBatchTime?: number,
+  lastBatchTime?: number
   contractUpdates: { [key: string]: ContractUpdateState }
 }
 

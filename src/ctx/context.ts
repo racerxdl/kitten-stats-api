@@ -2,13 +2,7 @@ import { Log } from 'web3-core'
 import { AbiItem } from 'web3-utils'
 import { getLastContractTransactions } from '../api/scanapi'
 import { EasyContract, ParsedLog } from '../eth/helpers'
-import {
-  ContractUpdateResult,
-  FullTransaction,
-  ParsedFullTransaction,
-  ParsedTransaction,
-  ParsedTransactionReceipt,
-} from '../eth/basetypes'
+import { ContractUpdateResult, FullTransaction, ParsedFullTransaction, ParsedTransaction, ParsedTransactionReceipt } from '../eth/basetypes'
 import { Transaction, TransactionReceipt } from '../eth/copy'
 import { FetchProvider } from '../eth/provider'
 
@@ -17,12 +11,12 @@ import {
   getTransaction as FTMgetTransaction,
   putTransaction,
   putContractABI,
-  getLastNTransactions, getContextState, putContextState, saveTransactions,
+  getContextState,
+  putContextState,
+  getToLastNTransactions,
 } from '../cloudflare/ftm'
 
-import {
-  getContractABI as APIgetContractABI,
-} from '../api/scanapi'
+import { getContractABI as APIgetContractABI } from '../api/scanapi'
 
 import Web3 from 'web3'
 import BN from 'bn.js'
@@ -49,21 +43,24 @@ const getContractABI = async (ctx: Context, contractAddress: string): Promise<Ar
   return contract
 }
 
-const getTransaction = async (ctx: Context, hash: string) : Promise<ParsedFullTransaction> => {
+const getTransaction = async (ctx: Context, hash: string): Promise<ParsedFullTransaction> => {
   let trx = await FTMgetTransaction(hash)
   if (trx) {
     return trx
   }
 
   const ntrx = await ctx.web3.eth.getTransaction(hash)
-  trx = ctx.parseFullTransaction({
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    transaction: ntrx,
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    receipt: await ctx.web3.eth.getTransactionReceipt(hash),
-  }, ntrx.to)
+  trx = ctx.parseFullTransaction(
+    {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      transaction: ntrx,
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      receipt: await ctx.web3.eth.getTransactionReceipt(hash),
+    },
+    ntrx.to,
+  )
   await putTransaction(trx)
 
   return trx
@@ -116,7 +113,7 @@ class Context {
    * Fetches a pre-initialized EasyContract
    * @param contractAddress
    */
-  getContract(contractAddress: string) : EasyContract|undefined {
+  getContract(contractAddress: string): EasyContract | undefined {
     return this._contracts[contractAddress.toLowerCase()]
   }
 
@@ -143,7 +140,7 @@ class Context {
   parseTransactionReceipt(receipt: TransactionReceipt, contractAddress?: string): ParsedTransactionReceipt {
     const preceipt = receipt as ParsedTransactionReceipt
     if (contractAddress) {
-      preceipt.parsedLogs = preceipt.logs.map(l => this.parseLogFromContract(contractAddress, l))
+      preceipt.parsedLogs = preceipt.logs.map((l) => this.parseLogFromContract(contractAddress, l))
     }
     return preceipt
   }
@@ -204,30 +201,28 @@ class Context {
     console.log(`updateContract(${contract}, ${lastBlockNumber})`)
     let error
     let block
-    const startingBlock = (new BN(lastBlockNumber)).addn(1).toString(10)
+    const startingBlock = new BN(lastBlockNumber).addn(1).toString(10)
     try {
       await this.initContract(contract)
       const trxs = await getLastContractTransactions(this.API_URL!, this.API_TOKEN!, contract, 1, startingBlock, '99999999', 'asc')
       this.reqCount++
 
       if (trxs.length) {
-        const ptrxs : Array<FullTransaction> = []
-        const hashes = trxs
-          .map(trx => trx.hash)
-          .filter(hash => hash !== '')
+        const ptrxs: Array<FullTransaction> = []
+        const hashes = trxs.map((trx) => trx.hash).filter((hash) => hash !== '')
 
         for (let i = 0; i < hashes.length; i++) {
           ptrxs.push(await this.getFullTransaction(hashes[i]))
-          if (this.reqCount > maxWorkerRequests) { // Cloudflare Worker Max
+          if (this.reqCount > maxWorkerRequests) {
+            // Cloudflare Worker Max
             break
           }
         }
         block = ptrxs
-          .map(trx => new BN(trx.transaction.blockNumber!))
-          .reduce((a, b) => a.gt(b) ? a : b)
+          .map((trx) => new BN(trx.transaction.blockNumber!))
+          .reduce((a, b) => (a.gt(b) ? a : b))
           .toString(10)
       }
-
     } catch (e) {
       error = e.toString()
     }
@@ -241,22 +236,21 @@ class Context {
   /**
    * Triggers update of ALL contracts specified in Context State
    */
-  async updateLastTransactions() : Promise<void> {
+  async updateLastTransactions(): Promise<void> {
     const start = Date.now()
     const state = await getContextState()
 
     // Get Enabled contracts
-    const contracts = Object
-      .keys(state.contractUpdates)
-      .filter((k) => state.contractUpdates[k].enabled)
+    const contracts = Object.keys(state.contractUpdates).filter((k) => state.contractUpdates[k].enabled)
 
     // Update all
     // We NEED to do this in a loop to await each one individually
-    const blocks : Array<ContractUpdateResult> = []
+    const blocks: Array<ContractUpdateResult> = []
     for (let i = 0; i < contracts.length; i++) {
       const c = contracts[i]
       blocks.push(await this.updateContract(c, state.contractUpdates[c].lastBlock))
-      if (this.reqCount > maxWorkerRequests) { // Cloudflare Worker Max
+      if (this.reqCount > maxWorkerRequests) {
+        // Cloudflare Worker Max
         break
       }
     }
@@ -284,12 +278,11 @@ class Context {
    * @param count
    */
   async getLastTransactions(contractAddress: string, count?: number): Promise<Array<ParsedFullTransaction>> {
-    console.log(`getLastTransactions(${contractAddress}, ${count||10})`)
-    const hashes = await getLastNTransactions(count || 10)
+    contractAddress = contractAddress.toLowerCase()
+    console.log(`getLastTransactions(${contractAddress}, ${count || 10})`)
+    const hashes = await getToLastNTransactions(contractAddress, count || 10)
     return Promise.all(hashes.map((trx) => this.getFullTransaction(trx)))
   }
 }
 
-export {
-  Context,
-}
+export { Context }

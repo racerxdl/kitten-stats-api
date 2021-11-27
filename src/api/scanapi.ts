@@ -54,20 +54,28 @@ const callApi = async (apiUrl: string, params: any): Promise<any> => {
  * @param endblock ending block to read  <optional>
  * @param sort sorting order (default asc)
  */
-const getLastContractTransactions = async (url: string, token: string,contractAddress: string, page?: number, startblock?: string, endblock?: string, sort = 'desc'): Promise<Array<APITransaction>> => {
+const getLastContractTransactions = async (
+  url: string,
+  token: string,
+  contractAddress: string,
+  page?: number,
+  startblock?: string,
+  endblock?: string,
+  sort = 'desc',
+): Promise<Array<APITransaction>> => {
   console.log(`API::getLastContractTransactions(${url},(...),${contractAddress},${page},${startblock},${endblock},${sort})`)
   const result = await callApi(url, {
     module: 'account',
     action: 'txlistinternal',
     address: contractAddress,
     apikey: token,
-    page: page|| 1,
+    page: page || 1,
     sort,
     startblock,
     endblock,
   })
 
-  const data = (await result.json()) as APITransactionResult;
+  const data = (await result.json()) as APITransactionResult
 
   if (data.status !== '1') {
     throw `API Error: ${data.message}`
@@ -84,7 +92,7 @@ const getLastContractTransactions = async (url: string, token: string,contractAd
  * @param token api token
  * @param contractAddress address of the contract
  */
-const getContractABI = async (url: string, token: string, contractAddress: string) : Promise<Array<AbiItem>> => {
+const getContractABI = async (url: string, token: string, contractAddress: string): Promise<Array<AbiItem>> => {
   console.log(`API::getContractABI(${url},(...),${contractAddress})`)
   const result = await callApi(url, {
     module: 'contract',
@@ -92,7 +100,7 @@ const getContractABI = async (url: string, token: string, contractAddress: strin
     address: contractAddress,
     apikey: token,
   })
-  const data = (await result.json()) as ABIResult;
+  const data = (await result.json()) as ABIResult
 
   if (data.status !== '1') {
     throw `API Error: ${data.message}`
@@ -101,7 +109,4 @@ const getContractABI = async (url: string, token: string, contractAddress: strin
   return JSON.parse(data.result)
 }
 
-export {
-  getLastContractTransactions,
-  getContractABI,
-}
+export { getLastContractTransactions, getContractABI }
