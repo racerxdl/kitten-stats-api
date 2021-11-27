@@ -1,0 +1,21 @@
+name = "kitten-stats"
+type = "javascript"
+zone_id = ""
+account_id = ""
+route = ""
+workers_dev = true
+
+kv-namespaces = [
+    { binding = "CursedTransistorAPIData", preview_id = "ac4d0e6d8cfd41a386fd5a06f72846c3", id = "4061f979f8014b378ecc9375cd94ba1e" },
+    { binding = "FantomProdTransactions", preview_id = "d785a78e76d04e409c786b77f2dd4181", id = "48339cf861a34cb4ae573cd6b8156a38" },
+]
+
+[vars]
+    API_URL="https://api.ftmscan.com/api"
+    RPC_URL="https://rpc.ftm.tools"
+
+[build]
+    command = "npm install && npm run build"
+
+[build.upload]
+    format = "service-worker"
