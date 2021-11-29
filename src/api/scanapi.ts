@@ -43,7 +43,7 @@ const callApi = async (apiUrl: string, params: any): Promise<any> => {
 }
 
 /**
- * Reads the transactions from a contract using the etherscan API
+ * Reads the internal transactions from a contract using the etherscan API
  * uses txlistinternal from account to list all transactions bound to the contract
  *
  * @param url target api url
@@ -54,7 +54,7 @@ const callApi = async (apiUrl: string, params: any): Promise<any> => {
  * @param endblock ending block to read  <optional>
  * @param sort sorting order (default asc)
  */
-const getLastContractTransactions = async (
+const getLastInternalTransactions = async (
   url: string,
   token: string,
   contractAddress: string,
@@ -63,10 +63,53 @@ const getLastContractTransactions = async (
   endblock?: string,
   sort = 'desc',
 ): Promise<Array<APITransaction>> => {
-  console.log(`API::getLastContractTransactions(${url},(...),${contractAddress},${page},${startblock},${endblock},${sort})`)
+  console.log(`API::getLastInternalTransactions(${url},(...),${contractAddress},${page},${startblock},${endblock},${sort})`)
   const result = await callApi(url, {
     module: 'account',
     action: 'txlistinternal',
+    address: contractAddress,
+    apikey: token,
+    page: page || 1,
+    sort,
+    startblock,
+    endblock,
+  })
+
+  const data = (await result.json()) as APITransactionResult
+
+  if (data.status !== '1') {
+    throw `API Error: ${data.message}`
+  }
+
+  return data.result
+}
+
+
+/**
+ * Reads the transactions from a contract using the etherscan API
+ * uses txlist from account to list all transactions bound to the contract
+ *
+ * @param url target api url
+ * @param token api token
+ * @param contractAddress address of the contract to read
+ * @param page number of the page <optional>
+ * @param startblock starting block to read  <optional>
+ * @param endblock ending block to read  <optional>
+ * @param sort sorting order (default asc)
+ */
+const getLastTransactions = async (
+  url: string,
+  token: string,
+  contractAddress: string,
+  page?: number,
+  startblock?: string,
+  endblock?: string,
+  sort = 'desc',
+): Promise<Array<APITransaction>> => {
+  console.log(`API::getLastTransactions(${url},(...),${contractAddress},${page},${startblock},${endblock},${sort})`)
+  const result = await callApi(url, {
+    module: 'account',
+    action: 'txlist',
     address: contractAddress,
     apikey: token,
     page: page || 1,
@@ -109,4 +152,4 @@ const getContractABI = async (url: string, token: string, contractAddress: strin
   return JSON.parse(data.result)
 }
 
-export { getLastContractTransactions, getContractABI }
+export { getLastInternalTransactions, getLastTransactions, getContractABI }

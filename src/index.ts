@@ -95,13 +95,13 @@ api.get('/transaction/*', async (req, res) => {
   await cache.put(cacheKey, new Response(res.responseOptions.body, res.transformResponseOptions()))
 })
 
-api.get('/update', async (req, res) => {
-  const ctx = req.additionalData!
-  await ctx.updateLastTransactions()
-  return res.statusCode(200).json({
-    success: true,
-  })
-})
+// api.get('/update', async (req, res) => {
+//   const ctx = req.additionalData!
+//   await ctx.updateLastTransactions()
+//   return res.statusCode(200).json({
+//     success: true,
+//   })
+// })
 
 addEventListener('fetch', (event: FetchEvent) => {
   const ctx = new Context(RPC_URL, API_URL, API_TOKEN)

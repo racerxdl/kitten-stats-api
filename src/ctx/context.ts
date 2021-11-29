@@ -1,6 +1,6 @@
 import { Log } from 'web3-core'
 import { AbiItem } from 'web3-utils'
-import { getLastContractTransactions } from '../api/scanapi'
+import { getLastInternalTransactions, getLastTransactions } from '../api/scanapi'
 import { EasyContract, ParsedLog } from '../eth/helpers'
 import { ContractUpdateResult, FullTransaction, ParsedFullTransaction, ParsedTransaction, ParsedTransactionReceipt } from '../eth/basetypes'
 import { Transaction, TransactionReceipt } from '../eth/copy'
@@ -204,7 +204,7 @@ class Context {
     const startingBlock = new BN(lastBlockNumber).addn(1).toString(10)
     try {
       await this.initContract(contract)
-      const trxs = await getLastContractTransactions(this.API_URL!, this.API_TOKEN!, contract, 1, startingBlock, '99999999', 'asc')
+      const trxs = await getLastTransactions(this.API_URL!, this.API_TOKEN!, contract, 1, startingBlock, '99999999', 'asc')
       this.reqCount++
 
       if (trxs.length) {
