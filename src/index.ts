@@ -103,8 +103,17 @@ api.get('/transaction/*', async (req, res) => {
 //   })
 // })
 
+// api.get('/updateCoins', async (req, res) => {
+//   const ctx = req.additionalData!
+//   // await ctx.updateCoinList()
+//   await ctx.updateCoinsFromMarketCap()
+//   return res.statusCode(200).json({
+//     success: true,
+//   })
+// })
+
 addEventListener('fetch', (event: FetchEvent) => {
-  const ctx = new Context(RPC_URL, API_URL, API_TOKEN)
+  const ctx = new Context(RPC_URL, API_URL, API_TOKEN, COINMARKETCAP_API_TOKEN, COINS)
   return event.respondWith(router.serveRequest(event.request, ctx).then((built) => built.response))
 })
 

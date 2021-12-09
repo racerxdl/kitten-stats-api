@@ -48,6 +48,7 @@ interface ContractUpdateState {
 interface ContextState {
   lastCronRun?: number
   lastBatchTime?: number
+  lastCoinDataUpdate?: number
   contractUpdates: { [key: string]: ContractUpdateState }
 }
 

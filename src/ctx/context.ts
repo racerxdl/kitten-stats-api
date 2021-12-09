@@ -1,8 +1,15 @@
 import { Log } from 'web3-core'
 import { AbiItem } from 'web3-utils'
-import { getLastInternalTransactions, getLastTransactions } from '../api/scanapi'
+import { getLastTransactions } from '../api/scanapi'
 import { EasyContract, ParsedLog } from '../eth/helpers'
-import { ContractUpdateResult, FullTransaction, ParsedFullTransaction, ParsedTransaction, ParsedTransactionReceipt } from '../eth/basetypes'
+import {
+  ContextState,
+  ContractUpdateResult,
+  FullTransaction,
+  ParsedFullTransaction,
+  ParsedTransaction,
+  ParsedTransactionReceipt,
+} from '../eth/basetypes'
 import { Transaction, TransactionReceipt } from '../eth/copy'
 import { FetchProvider } from '../eth/provider'
 
@@ -20,8 +27,13 @@ import { getContractABI as APIgetContractABI } from '../api/scanapi'
 
 import Web3 from 'web3'
 import BN from 'bn.js'
+import { getCoinGeckoExchangeRates } from '../api/coingecko'
+import { putCoinMetas, putCoinPairs } from '../cloudflare/coins'
+import { CoinPair } from '../coins/meta'
+import { getCoinMarketCapRates } from '../api/coinmarketcap'
 
 const maxWorkerRequests = 40
+const coinDataUpdateInterval = 30 * 24 * 3600 * 1000 // 30 days
 
 // Caching functions
 const getContractABI = async (ctx: Context, contractAddress: string): Promise<Array<AbiItem>> => {
@@ -73,13 +85,16 @@ class Context {
   readonly API_URL?: string
   readonly API_TOKEN?: string
   readonly RPC_URL: string
+  readonly COINMARKETCAP_API_TOKEN?: string
 
   private readonly _provider?: FetchProvider
   readonly web3: Web3
   _contracts: { [key: string]: EasyContract }
   private reqCount: number
+  private state: ContextState | null
+  private coins: Array<string>
 
-  constructor(RPC_URL: string, API_URL?: string, API_TOKEN?: string) {
+  constructor(RPC_URL: string, API_URL?: string, API_TOKEN?: string, COINMARKETCAP_API_TOKEN?: string, COINS?: string) {
     this.API_URL = API_URL
     this.API_TOKEN = API_TOKEN
     this.RPC_URL = RPC_URL
@@ -87,6 +102,9 @@ class Context {
     this._provider = new FetchProvider(this.RPC_URL)
     this.web3 = new Web3(this._provider)
     this.reqCount = 0
+    this.state = null
+    this.coins = (COINS?.split(',') || []).map(coin => coin.trim())
+    this.COINMARKETCAP_API_TOKEN = COINMARKETCAP_API_TOKEN
   }
 
   /**
@@ -233,12 +251,22 @@ class Context {
     }
   }
 
+  async loadState(): Promise<void> {
+    if (this.state === null) {
+      this.state = await getContextState()
+    }
+  }
+
   /**
    * Triggers update of ALL contracts specified in Context State
    */
   async updateLastTransactions(): Promise<void> {
     const start = Date.now()
-    const state = await getContextState()
+    await this.loadState()
+    if (this.state === null) {
+      throw Error('state is null after loading') // Should never happen
+    }
+    const state = this.state
 
     // Get Enabled contracts
     const contracts = Object.keys(state.contractUpdates).filter((k) => state.contractUpdates[k].enabled)
@@ -282,6 +310,123 @@ class Context {
     console.log(`getLastTransactions(${contractAddress}, ${count || 10})`)
     const hashes = await getToLastNTransactions(contractAddress, count || 10)
     return Promise.all(hashes.map((trx) => this.getFullTransaction(trx)))
+  }
+
+  async updateCoinsFromMarketCap(): Promise<void> {
+    if (!this.COINMARKETCAP_API_TOKEN) {
+      return
+    }
+    if (this.reqCount > maxWorkerRequests) {
+      // Cloudflare Worker Max
+      return
+    }
+    await this.loadState()
+    if (this.state === null) {
+      throw Error('state is null after loading') // Should never happen
+    }
+
+    const coins = this.coins.map((coin) => coin.toLowerCase())
+
+    const state = this.state
+    const rates: { [key: string]: CoinPair } = {}
+
+    const marketCapData = await getCoinMarketCapRates(this.COINMARKETCAP_API_TOKEN)
+    this.reqCount++
+
+    const coinMetas = marketCapData
+      .filter((data) => coins.indexOf(data.symbol.toLowerCase()) > -1)
+      .map((data) => {
+        const from = data.symbol
+        Object.keys(data.quote).map((to: string) => {
+          const quote = data.quote[to]
+          const pair = `${from.toUpperCase()}_${to.toUpperCase()}`
+          const revpair = `${to.toUpperCase()}_${from.toUpperCase()}`
+          if (!rates[pair] && quote.price !== 0) {
+            rates[pair] = {
+              from,
+              to,
+              rate: quote.price,
+            }
+            rates[revpair] = {
+              from: to,
+              to: from,
+              rate: 1.0 / quote.price,
+            }
+          }
+        })
+
+        return {
+          symbol: data.symbol,
+          name: data.name,
+          unit: data.symbol,
+        }
+      })
+
+    if (Date.now() - (state.lastCoinDataUpdate || 0) > coinDataUpdateInterval) {
+      console.log(`Updating coin data for ${coinMetas.length} coins`)
+      await putCoinMetas(coinMetas)
+      state.lastCoinDataUpdate = Date.now()
+    }
+
+    await putCoinPairs(Object.keys(rates).map((coin) => rates[coin]))
+
+    // Save
+    await putContextState(state)
+  }
+
+  async updateCoinList(): Promise<void> {
+    await this.loadState()
+    if (this.state === null) {
+      throw Error('state is null after loading') // Should never happen
+    }
+    const state = this.state
+    const coins = this.coins.map((coin) => coin.toLowerCase().trim())
+
+    if (this.reqCount > maxWorkerRequests) {
+      // Cloudflare Worker Max
+      return
+    }
+    const geckoRates = await getCoinGeckoExchangeRates()
+    this.reqCount++
+
+    const enabledCoins = Object.keys(geckoRates)
+      .filter((symbol: string) => coins.indexOf(symbol.toLowerCase()) > -1)
+
+    const rates: { [key: string]: CoinPair } = {}
+
+    // CoinGecko pairs are always BTC -> COIN
+    const coinMeta = enabledCoins
+      .map((symbol: string) => {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        const gecko = geckoRates[symbol]
+        if (gecko.value && gecko.value !== 0) {
+          rates[`BTC_${symbol.toUpperCase()}`] = {
+            from: 'BTC',
+            to: symbol.toUpperCase(),
+            rate: gecko.value,
+          }
+          rates[`${symbol.toUpperCase()}_BTC`] = {
+            from: symbol.toUpperCase(),
+            to: 'BTC',
+            rate: 1.0 / gecko.value,
+          }
+        }
+
+        return {
+          symbol,
+          name: gecko.name,
+          unit: gecko.unit,
+        }
+      })
+
+    if (Date.now() - (state.lastCoinDataUpdate || 0) > coinDataUpdateInterval) {
+      console.log(`Updating coin data for ${coinMeta.length} coins`)
+      await putCoinMetas(coinMeta)
+      state.lastCoinDataUpdate = Date.now()
+    }
+
+    await putCoinPairs(Object.keys(rates).map((coin) => rates[coin]))
   }
 }
 

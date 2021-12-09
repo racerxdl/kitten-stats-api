@@ -8,11 +8,13 @@ workers_dev = true
 kv-namespaces = [
     { binding = "CursedTransistorAPIData", preview_id = "ac4d0e6d8cfd41a386fd5a06f72846c3", id = "4061f979f8014b378ecc9375cd94ba1e" },
     { binding = "FantomProdTransactions", preview_id = "d785a78e76d04e409c786b77f2dd4181", id = "9c096802418e4f9bb95a6becc1bfea87" },
+    { binding = "CryptoCoins", preview_id = "5f19b96b616c4af5a1e7342fa5ce098a", id = "058336f2d6ee48a2b0866dd9b9f26b43" },
 ]
 
 [vars]
     API_URL="https://api.ftmscan.com/api"
     RPC_URL="https://rpc.ftm.tools"
+    COINS="FTM,BRL,USDT,BTC,ETH"
 
 [build]
     command = "npm install && npm run build"
