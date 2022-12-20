@@ -49,6 +49,6 @@
     "dotenv": "^10.0.0",
     "node-fetch-commonjs": "^3.0.3",
     "querystring": "^0.2.1",
-    "web3": "^1.6.1"
+    "web3": "^1.8.1"
   }
 }
